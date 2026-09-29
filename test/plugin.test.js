@@ -18,8 +18,10 @@ const KNOWN_KEYS = new Set(['assignees', 'guests', 'groups', 'id', 'is_approved'
 // Status values the server accepts. Task filters are the keys of
 // _TASK_STATUS_FILTERS in the Tallyfy MCP server's task_management.py; run
 // statuses are those get_organization_runs documents. Refresh with tools.txt.
+// `stalled` is left out: the server accepts it, but the Tallyfy API in
+// production ignores it and returns every task. Add it once production filters.
 const TASK_STATUSES = new Set(['all', 'active', 'active-visible', 'not-started', 'in-progress', 'complete',
-  'overdue', 'stalled', 'due-soon', 'on-time', 'has-problem', 'has-improvement']);
+  'overdue', 'due-soon', 'on-time', 'has-problem', 'has-improvement']);
 const RUN_STATUSES = new Set(['active', 'problem', 'delayed', 'complete', 'improvement', 'starred', 'archived']);
 // Which status list each tool takes.
 const STATUS_LISTS = {
@@ -42,7 +44,7 @@ function sentences(text) {
 function unknownStatuses(text) {
   const bad = [];
   for (const s of sentences(text)) {
-    const values = [...s.matchAll(/status\s*=?\s*"([^"]+)"/g)].map((m) => m[1]);
+    const values = [...s.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]);
     if (!values.length) continue;
     const named = Object.keys(STATUS_LISTS).filter((tool) => s.includes(tool));
     for (const v of values) {
@@ -53,8 +55,14 @@ function unknownStatuses(text) {
 }
 
 // Kickoff answers are keyed by each field's `id`; any other key is dropped.
+// A skill that launches a process must say so, and must not key them any
+// other way.
 function wrongKickoffKeys(text) {
-  return sentences(text).filter((s) => /keyed by/.test(s) && !/keyed by each field's `id`/.test(s));
+  const wrong = sentences(text).filter((s) => /keyed (by|on)/.test(s) && !/keyed by each field's `id`/.test(s));
+  if (text.includes('launch_process') && !/keyed by each field's `id`/.test(text.replace(/\s+/g, ' '))) {
+    wrong.push('(launch_process named, but no "keyed by each field\'s `id`")');
+  }
+  return wrong;
 }
 
 // Frontmatter values must be plain YAML scalars: no ': ' or ' #' inside.
@@ -166,6 +174,10 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "delayed".'), ['delayed']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "has-problem".'), ['has-problem']);
   assert.deepEqual(unknownStatuses('Pass status "active".'), ['active']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status: "delayd".'), ['delayd']);
+  assert.deepEqual(unknownStatuses("Call `get_my_tasks` with status 'active-visibel'."), ['active-visibel']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the status filter set to "delayd".'), ['delayd']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "stalled".'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Call `get_tasks_for_process`\nwith status "has-problem".'), []);
 });
 
@@ -173,6 +185,9 @@ test('control: kickoff key and frontmatter checks flag the wrong shapes', () => 
   assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `label`.").length, 1);
   assert.equal(wrongKickoffKeys("answers as one object keyed by each field's label.").length, 1);
   assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `id`.").length, 0);
+  assert.equal(wrongKickoffKeys("answers keyed on each field's label.").length, 1);
+  assert.equal(wrongKickoffKeys('Call `launch_process` with the name.').length, 1);
+  assert.equal(wrongKickoffKeys("Call `launch_process` with answers keyed by each field's `id`.").length, 0);
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this, then that\n---\n'), []);
 });
