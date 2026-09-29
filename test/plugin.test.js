@@ -50,7 +50,7 @@ function unknownStatuses(text) {
       values.push(...[...c.matchAll(/with status ([a-z][a-z-]*)(?=\s*[.,;:()]|\s*$)/g)].map((m) => m[1]));
       // A quoted value beside "filter" is a status unless the clause names
       // another filter (folder, tag, archived, template, owner, group).
-      if (/status/i.test(c) || !/\b(folders?|tags?|archiv\w*|templates?|owners?|groups?)\b/i.test(c)) {
+      if (!/\b(folders?|tags?|archiv\w*|templates?|owners?|groups?)\b/i.test(c)) {
         values.push(...[...c.matchAll(/filter(?:ed)?\b[^"'.]{0,20}?["']([^"']+)["']/g)].map((m) => m[1]));
         values.push(...[...c.matchAll(/["']([^"']+)["']\s+filter/g)].map((m) => m[1]));
       }
@@ -69,10 +69,15 @@ function unknownStatuses(text) {
 // other way.
 function wrongKickoffKeys(text) {
   const LABEL = '(?:labels?|alias(?:es)?)';
-  const asKey = new RegExp(`keyed (?:by|on)[^.]*?\\b${LABEL}\\b|\\b${LABEL}\\b[^.]*?\\b(?:as (?:the |a )?keys?|work as keys?)\\b`, 'i');
+  const asKey = new RegExp(`\\bkey(?:ed)? (?:by|on)\\b[^.]*?\\b${LABEL}\\b`
+    + `|\\b${LABEL}\\b[^.]*?\\b(?:as (?:the |a )?keys?|work as keys?)\\b`
+    + `|\\b${LABEL} (?:also works?|works? too)\\b`, 'i');
   const wrong = sentences(text).filter((s) => {
-    // "not its label" is the warning, not an offer, so it is removed first.
-    const offer = s.replace(new RegExp(`\\bnot (?:its |the |a |their )?${LABEL}\\b`, 'gi'), '');
+    // Warnings against labels ("not its label", "labels are ignored") are
+    // not offers, so they are removed before looking for an offer.
+    const offer = s
+      .replace(new RegExp(`\\b(?:not|never|rather than|instead of)(?: by| using)? (?:its |the |a |their |field )?${LABEL}\\b`, 'gi'), '')
+      .replace(new RegExp(`\\b${LABEL} (?:are|is) (?:ignored|dropped)\\b`, 'gi'), '');
     return (/keyed (by|on)/i.test(s) && !/keyed by each field's `id`/i.test(s)) || asKey.test(offer);
   });
   if (text.includes('launch_process') && !/keyed by each field's `id`/i.test(text.replace(/\s+/g, ' '))) {
@@ -202,6 +207,8 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status set to "active-visible".'), []);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the folder filter set to "Finance".'), []);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the archived filter set to "only".'), []);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed" and the folder filter set to "Finance".'), []);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayd" and the folder filter set to "Finance".'), ['delayd']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Call `get_tasks_for_process`\nwith status "has-problem".'), []);
 });
 
@@ -217,6 +224,13 @@ test('control: kickoff key and frontmatter checks flag the wrong shapes', () => 
   assert.equal(wrongKickoffKeys("answers keyed by each field's `id`, not its label.").length, 0);
   assert.equal(wrongKickoffKeys('Give each kickoff field a clear label, and mark the key details as required.').length, 0);
   assert.equal(wrongKickoffKeys("Call `launch_process` with answers Keyed By Each Field's `id`.").length, 0);
+  for (const ok of ["keyed by each field's `id`, not by its label.", "keyed by each field's `id` rather than its label.",
+    "keyed by each field's `id` instead of the label.", "keyed by each field's `id`; labels are ignored."]) {
+    assert.equal(wrongKickoffKeys(ok).length, 0, ok);
+  }
+  for (const bad of ['Labels also work.', 'Key by label if the user prefers.', 'Aliases work too.']) {
+    assert.equal(wrongKickoffKeys(bad).length, 1, bad);
+  }
   assert.equal(wrongKickoffKeys('Call `launch_process` with the name.').length, 1);
   assert.equal(wrongKickoffKeys("Call `launch_process` with answers keyed by each field's `id`.").length, 0);
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);
