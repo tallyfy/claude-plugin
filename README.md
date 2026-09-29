@@ -43,6 +43,12 @@ https://tallyfy.com/products/pro/integrations/mcp-server/.
 - A skill may name only tools the Tallyfy connector serves. `test/tools.txt`
   holds that list, taken from the live server; refresh it when the server
   adds or renames a tool.
+- Write each status in quotes, in the same sentence as the tool it is passed
+  to, for example: call `get_my_tasks` with status "active-visible". The
+  test checks it against the statuses that tool accepts.
+- A sentence that mentions both keys and labels must say kickoff answers are
+  keyed by each field's `id`, and may mention a label only as "not its
+  label". Any other wording fails the test on purpose.
 - Run `node --test` and `claude plugin validate . --strict` before opening a
   pull request.
 
