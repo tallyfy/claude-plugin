@@ -7,11 +7,17 @@ description: Show the user's open Tallyfy tasks grouped by when they are due, th
 
 ## 1. Show what is open
 
-Call `get_my_tasks`. It returns open tasks by default. Group them as overdue,
-due today, due this week, later, and no deadline. For each task show its
-title, the process it belongs to, and its deadline. Keep the list short: if
-there are many, show the overdue and today groups in full and give counts for
-the rest.
+Call `get_my_tasks` with status "active-visible", which returns tasks that
+are not started or in progress and leaves out auto-skipped ones. Results
+come a page at a time: read the page count in the response's meta and fetch
+the remaining pages, or tell the user you are showing only the first page and
+how many tasks there are in total.
+
+Tallyfy has no overdue status on a task, so compare each deadline with the
+current time. Group the tasks as overdue, due today, due this week, later,
+and no deadline. For each task show its title, the process it belongs to,
+and its deadline. If there are many, show the overdue and today groups in
+full and give counts for the rest.
 
 ## 2. Open a task
 
@@ -21,12 +27,14 @@ with `get_standalone_task`.
 
 ## 3. Complete a task
 
-1. If the task has required form fields, ask the user for each value and save
-   them with `update_task`.
-2. For an approval task, ask whether to approve or reject.
-3. Completing a task moves the process on and can notify the next person, so
-   confirm with the user first. Then call `complete_task`, or
-   `complete_standalone_task` for a one-off task.
+1. If the task has required form fields, ask the user for each value and
+   save them with `update_task`, or `update_standalone_task` for a one-off
+   task.
+2. Completing a task moves the process on and can notify the next person, so
+   confirm with the user first.
+3. Call `complete_task`, or `complete_standalone_task` for a one-off task.
+   For an approval task, ask the user to approve or reject and pass that
+   answer as `is_approved`.
 
 ## 4. Comment or flag a problem
 

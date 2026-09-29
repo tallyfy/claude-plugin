@@ -8,8 +8,8 @@ description: Find the right Tallyfy template, collect its kickoff form answers, 
 ## 1. Find the template
 
 Call `search_for_templates` with what the user named. If more than one
-matches, list them with their summaries and ask which one. Call
-`get_template` on the chosen template to read its steps.
+matches, list them with their summaries and ask which one. If the user wants
+to check what the process involves first, call `get_template_steps`.
 
 ## 2. Collect the kickoff answers
 
@@ -28,7 +28,8 @@ change it.
 
 Show the user the template, the process name and the kickoff answers, and ask
 them to confirm. Then call `launch_process` with the template id, the name,
-and the kickoff answers as one object keyed by each field's `timeline_id`.
+and the kickoff answers as one object keyed by each field's `id` from
+`get_kickoff_fields`.
 
 ## 5. Report back
 

@@ -8,24 +8,23 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
-// Backticked identifiers in skills that are not tool names.
-const NOT_TOOLS = new Set(['timeline_id']);
-const TOOL_SHAPE = /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/;
+// Snake_case words in skills that are parameter names, not tool names.
+const NOT_TOOLS = new Set(['is_approved']);
+const SNAKE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
 
 function loadTools() {
   return new Set(read('test/tools.txt').split('\n').filter(Boolean));
 }
 
-// Returns every backticked snake_case name in the text that is neither a
-// served tool nor listed in NOT_TOOLS.
+// Every snake_case word in the text, wherever it appears (backticks, bold,
+// call form or plain prose), that is neither a served tool nor in NOT_TOOLS.
 function unknownToolRefs(text, tools) {
-  const refs = [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
-  return refs.filter((r) => TOOL_SHAPE.test(r) && !tools.has(r) && !NOT_TOOLS.has(r));
+  const words = text.match(SNAKE) || [];
+  return [...new Set(words.filter((w) => !tools.has(w) && !NOT_TOOLS.has(w)))];
 }
 
 function toolRefs(text, tools) {
-  const refs = [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
-  return new Set(refs.filter((r) => tools.has(r)));
+  return new Set((text.match(SNAKE) || []).filter((w) => tools.has(w)));
 }
 
 function frontmatter(text) {
@@ -88,8 +87,10 @@ test('control: the tool check flags a name the server does not serve', () => {
   const tools = loadTools();
   const fake = `zq${Date.now()}_notathing`;
   assert.ok(!tools.has(fake));
-  assert.deepEqual(unknownToolRefs(`call \`${fake}\` then \`launch_process\``, tools), [fake]);
-  assert.deepEqual(unknownToolRefs('call `launch_process`', tools), []);
+  for (const form of [`\`${fake}\``, `**${fake}**`, `${fake}(task_ref)`, `plain ${fake} text`]) {
+    assert.ok(unknownToolRefs(`call ${form} then \`launch_process\``, tools).includes(fake), form);
+  }
+  assert.deepEqual(unknownToolRefs('call `launch_process` with `is_approved`', tools), []);
 });
 
 test('.mcp.json has one http server at the connector URL', () => {

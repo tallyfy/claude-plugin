@@ -11,18 +11,25 @@ Call `get_organization_runs` twice: once with status "problem" (a task has an
 open problem) and once with status "delayed" (a task is overdue). If the user
 named a template, a folder or a tag, pass that filter too.
 
+Results come a page at a time. Read the total in the response's meta and
+fetch the remaining pages. If there are too many to go through, say how many
+there are and work through the first page, latest first.
+
 ## 2. Find what is holding each one up
 
-For each process, call `get_tasks_for_process` with status "overdue" to find
-the late tasks and who has them. For a process with a problem, call
-`get_tasks_for_process` with status "has-problem" to find the flagged task,
-then `get_task_comments` on it to read what was reported.
+For each process, call `get_tasks_for_process` with status "active-visible"
+and compare each task's deadline with the current time. The tasks past their
+deadline are the late ones, and their assignees are who can move them.
+
+For a process with a problem, call `get_tasks_for_process` with status
+"has-problem" to find the flagged task, then `get_task_comments` on it to
+read what was reported.
 
 ## 3. Summarise
 
 Give one line per process: the process name, the task holding it up, who has
-that task, how late it is, and the reported problem if there is one. Put the
-latest first. If nothing is stuck, say so in one sentence.
+that task, how late it is, and the reported problem if there is one. If
+nothing is stuck, say so in one sentence.
 
 ## 4. Offer to nudge
 

@@ -33,15 +33,16 @@ and create nothing until they confirm.
 
 ## 3. Create it
 
-1. `create_template` with the title and summary. Use the procedure type
+1. Look up who does each step: people with `get_organization_users_list`
+   and groups with `get_groups`. If someone is not in Tallyfy yet, leave
+   their step unassigned and tell the user which steps need an owner.
+2. `create_template` with the title and summary. Use the procedure type
    unless the user asked for a form or a document.
-2. `add_step_to_template` for each step, in order.
-3. `add_form_field_to_step` for each step's fields, and `add_kickoff_field`
+3. `add_step_to_template` for each step, in order. Put who does it in the
+   step data: member ids under `assignees`, guest emails under `guests` and
+   group ids under `groups`.
+4. `add_form_field_to_step` for each step's fields, and `add_kickoff_field`
    for each kickoff field.
-4. `add_assignees_to_step` for each step with a named person or group. Find
-   people with `get_organization_users_list` and groups with `get_groups`.
-   If someone is not in Tallyfy yet, leave the step unassigned and tell the
-   user which steps need an owner.
 5. Set deadlines with `update_step`. If a deadline is unclear, call
    `suggest_step_deadline` and propose one.
 
@@ -54,6 +55,10 @@ about anything you could not fix.
 ## 5. Offer a test run
 
 Tell the user the template is ready and summarise it in two or three lines.
-Ask whether they want a test run. If they do, launch one with
-`launch_process` and give it a name that is plainly a test, such as
-"TEST Invoice Approval".
+Ask whether they want a test run. If they do:
+
+1. Call `get_kickoff_fields` and propose a sample value for each required
+   field. Let the user change them.
+2. Call `launch_process` with a name that is plainly a test, such as
+   "TEST Invoice Approval", and the sample values as one object keyed by each
+   field's `id`.
