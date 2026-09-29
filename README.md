@@ -43,16 +43,20 @@ https://tallyfy.com/products/pro/integrations/mcp-server/.
 - A skill may name only tools the Tallyfy connector serves. `test/tools.txt`
   holds that list, taken from the live server; refresh it when the server
   adds or renames a tool.
-- Write each status in quotes, in the same sentence as the tool it is passed
-  to, for example: call `get_my_tasks` with status "active-visible". Name
-  only one status-taking tool in that sentence. In a clause that mentions
-  status (any capitalisation), every quoted value is read as a status and
-  checked against what that tool accepts; an unquoted word after "status"
+- Statuses: in a sentence that names `get_organization_runs`,
+  `get_my_tasks` or `get_tasks_for_process`, or that mentions status, every
+  quoted value is read as a status and must be one that tool accepts. Name
+  only one of those tools in the sentence, and put folder, tag or other
+  filter values in a sentence of their own. An unquoted word after "status"
   that looks like a status is checked too.
-- Kickoff answers are keyed by each field's `id`. A sentence that mentions
-  both keys and labels (or aliases) must say exactly that, and in a skill
-  that launches a process, labels and aliases may be mentioned only as "not
-  its label". Any other wording fails the test on purpose.
+- Kickoff answers: any sentence that says "keyed" must end with "keyed by
+  each field's `id`", followed by nothing but an optional ", not its label"
+  or " from `get_kickoff_fields`". In a skill that launches a process, do not
+  mention labels or aliases anywhere else. In other skills, do not mention
+  keys and labels or aliases in the same sentence, or say that labels or
+  aliases also work.
+- Wording outside these rules fails the test on purpose, even when it is
+  correct; reword it to fit.
 - Run `node --test` and `claude plugin validate . --strict` before opening a
   pull request.
 
