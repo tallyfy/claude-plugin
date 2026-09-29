@@ -34,4 +34,6 @@ and the kickoff answers as one object keyed by each field's `id` from
 ## 5. Report back
 
 Call `get_tasks_for_process` for the new process and tell the user the first
-tasks, who has them, and when they are due.
+tasks, who has them, and when they are due. Tasks list their owners as user
+and group ids, so name them from `get_organization_users_list` and
+`get_groups`.

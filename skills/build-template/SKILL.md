@@ -57,8 +57,12 @@ about anything you could not fix.
 Tell the user the template is ready and summarise it in two or three lines.
 Ask whether they want a test run. If they do:
 
-1. Call `get_kickoff_fields` and propose a sample value for each required
+1. Tell the user who will hear about it. Launching emails every person,
+   group member and guest assigned to its tasks, and an email step sends by
+   itself. Offer to reassign those steps to the user for the test, or to
+   skip the test run.
+2. Call `get_kickoff_fields` and propose a sample value for each required
    field. Let the user change them.
-2. Call `launch_process` with a name that is plainly a test, such as
+3. Call `launch_process` with a name that is plainly a test, such as
    "TEST Invoice Approval", and the sample values as one object keyed by each
    field's `id`.

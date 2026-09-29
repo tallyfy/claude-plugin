@@ -16,8 +16,9 @@ how many tasks there are in total.
 Tallyfy has no overdue status on a task, so compare each deadline with the
 current time. Group the tasks as overdue, due today, due this week, later,
 and no deadline. For each task show its title, the process it belongs to,
-and its deadline. If there are many, show the overdue and today groups in
-full and give counts for the rest.
+and its deadline. Tasks carry the process id, not its name, so call
+`get_process` once for each process you show. If there are many tasks, show
+the overdue and today groups in full and give counts for the rest.
 
 ## 2. Open a task
 

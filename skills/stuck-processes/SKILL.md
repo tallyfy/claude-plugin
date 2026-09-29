@@ -17,9 +17,11 @@ there are and work through the first page, latest first.
 
 ## 2. Find what is holding each one up
 
-For each process, call `get_tasks_for_process` with status "active-visible"
-and compare each task's deadline with the current time. The tasks past their
-deadline are the late ones, and their assignees are who can move them.
+For each process, call `get_tasks_for_process` with status "active-visible",
+reading every page, and compare each task's deadline with the current time.
+The tasks past their deadline are the late ones, and their owners are who can
+move them. Owners come back as user and group ids, so name them from
+`get_organization_users_list` and `get_groups`.
 
 For a process with a problem, call `get_tasks_for_process` with status
 "has-problem" to find the flagged task, then `get_task_comments` on it to

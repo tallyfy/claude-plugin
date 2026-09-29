@@ -12,6 +12,27 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const NOT_TOOLS = new Set(['is_approved']);
 const SNAKE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
 
+// Backticked words a skill may use that are keys in tool data, not tools.
+const KNOWN_KEYS = new Set(['assignees', 'guests', 'groups', 'id', 'is_approved']);
+
+// Status values the server accepts. Task filters are the keys of
+// _TASK_STATUS_FILTERS in the Tallyfy MCP server's task_management.py; run
+// statuses are those get_organization_runs documents. Refresh with tools.txt.
+const TASK_STATUSES = ['all', 'active', 'active-visible', 'not-started', 'in-progress', 'complete',
+  'overdue', 'stalled', 'due-soon', 'on-time', 'has-problem', 'has-improvement'];
+const RUN_STATUSES = ['active', 'problem', 'delayed', 'complete', 'improvement', 'starred', 'archived'];
+const STATUSES = new Set([...TASK_STATUSES, ...RUN_STATUSES]);
+
+function unknownBackticked(text, tools) {
+  const words = [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+  return [...new Set(words.filter((w) => !tools.has(w) && !KNOWN_KEYS.has(w)))];
+}
+
+function unknownStatuses(text) {
+  const values = [...text.matchAll(/status\s+"([^"]+)"/g)].map((m) => m[1]);
+  return [...new Set(values.filter((v) => !STATUSES.has(v)))];
+}
+
 function loadTools() {
   return new Set(read('test/tools.txt').split('\n').filter(Boolean));
 }
@@ -79,7 +100,12 @@ for (const dir of skills) {
     const text = read(`skills/${dir}/SKILL.md`);
     const tools = loadTools();
     assert.deepEqual(unknownToolRefs(text, tools), []);
+    assert.deepEqual(unknownBackticked(text, tools), []);
     assert.ok(toolRefs(text, tools).size >= 2);
+  });
+
+  test(`${dir}: every quoted status is one the server accepts`, () => {
+    assert.deepEqual(unknownStatuses(read(`skills/${dir}/SKILL.md`)), []);
   });
 }
 
@@ -91,6 +117,14 @@ test('control: the tool check flags a name the server does not serve', () => {
     assert.ok(unknownToolRefs(`call ${form} then \`launch_process\``, tools).includes(fake), form);
   }
   assert.deepEqual(unknownToolRefs('call `launch_process` with `is_approved`', tools), []);
+  for (const w of ['getMyTasks', 'Get_Task_Commentz', 'mcp__tallyfy__get_kickoff_fieldz', 'label']) {
+    assert.deepEqual(unknownBackticked(`call \`${w}\` then \`launch_process\` keyed by \`id\``, tools), [w]);
+  }
+});
+
+test('control: the status check flags a value the server does not accept', () => {
+  assert.deepEqual(unknownStatuses('with status "active-visibel" and status "delayed"'), ['active-visibel']);
+  assert.deepEqual(unknownStatuses('with status "has-problem"'), []);
 });
 
 test('.mcp.json has one http server at the connector URL', () => {

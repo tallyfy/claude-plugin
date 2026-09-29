@@ -16,8 +16,9 @@ often bring to Tallyfy.
 
 A Tallyfy account. The first time Claude uses a Tallyfy tool, you sign in
 with your normal Tallyfy login. Claude acts as you, so it sees and changes
-only what your Tallyfy role allows. Anything that deletes or archives asks
-you first.
+only what your Tallyfy role allows. The connector marks every tool that
+deletes or archives as destructive, and your Claude app's tool permissions
+decide whether Claude asks you before using one.
 
 ## Install
 
