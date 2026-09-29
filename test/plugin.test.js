@@ -44,7 +44,12 @@ function sentences(text) {
 function unknownStatuses(text) {
   const bad = [];
   for (const s of sentences(text)) {
-    const values = [...s.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]);
+    const values = [
+      ...[...s.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]),
+      ...[...s.matchAll(/filter(?:ed)?\b[^"'.]{0,20}?["']([^"']+)["']/g)].map((m) => m[1]),
+      ...[...s.matchAll(/["']([^"']+)["']\s+filter/g)].map((m) => m[1]),
+      ...[...s.matchAll(/with status ([a-z][a-z-]*)\b/g)].map((m) => m[1]),
+    ];
     if (!values.length) continue;
     const named = Object.keys(STATUS_LISTS).filter((tool) => s.includes(tool));
     for (const v of values) {
@@ -58,7 +63,9 @@ function unknownStatuses(text) {
 // A skill that launches a process must say so, and must not key them any
 // other way.
 function wrongKickoffKeys(text) {
-  const wrong = sentences(text).filter((s) => /keyed (by|on)/.test(s) && !/keyed by each field's `id`/.test(s));
+  const wrong = sentences(text).filter((s) =>
+    (/keyed (by|on)/i.test(s) && (!/keyed by each field's `id`/i.test(s) || /\b(labels?|alias(es)?)\b/i.test(s)))
+    || /\b(labels?|alias(es)?)\b[^.]*\bkeys?\b|\bkeys?\b[^.]*\b(labels?|alias(es)?)\b/i.test(s));
   if (text.includes('launch_process') && !/keyed by each field's `id`/.test(text.replace(/\s+/g, ' '))) {
     wrong.push('(launch_process named, but no "keyed by each field\'s `id`")');
   }
@@ -178,6 +185,10 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses("Call `get_my_tasks` with status 'active-visibel'."), ['active-visibel']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the status filter set to "delayd".'), ['delayd']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with the "stalled" filter.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process`, filtered to "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status overdue.'), []);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Call `get_tasks_for_process`\nwith status "has-problem".'), []);
 });
 
@@ -186,6 +197,9 @@ test('control: kickoff key and frontmatter checks flag the wrong shapes', () => 
   assert.equal(wrongKickoffKeys("answers as one object keyed by each field's label.").length, 1);
   assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `id`.").length, 0);
   assert.equal(wrongKickoffKeys("answers keyed on each field's label.").length, 1);
+  assert.equal(wrongKickoffKeys("answers keyed by each field's `id` or its label.").length, 1);
+  assert.equal(wrongKickoffKeys('Field labels work as keys too.').length, 1);
+  assert.equal(wrongKickoffKeys('Keyed by label also works.').length, 1);
   assert.equal(wrongKickoffKeys('Call `launch_process` with the name.').length, 1);
   assert.equal(wrongKickoffKeys("Call `launch_process` with answers keyed by each field's `id`.").length, 0);
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);

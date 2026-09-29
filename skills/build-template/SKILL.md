@@ -65,3 +65,5 @@ Ask whether they want a test run. If they do:
 3. Call `launch_process` with a name that is plainly a test, such as
    "TEST Invoice Approval", and the sample values as one object keyed by each
    field's `id`.
+4. When the user has finished with the test, offer to archive it with
+   `archive_process` so its assignees stop getting reminders about it.
