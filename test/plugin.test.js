@@ -18,19 +18,50 @@ const KNOWN_KEYS = new Set(['assignees', 'guests', 'groups', 'id', 'is_approved'
 // Status values the server accepts. Task filters are the keys of
 // _TASK_STATUS_FILTERS in the Tallyfy MCP server's task_management.py; run
 // statuses are those get_organization_runs documents. Refresh with tools.txt.
-const TASK_STATUSES = ['all', 'active', 'active-visible', 'not-started', 'in-progress', 'complete',
-  'overdue', 'stalled', 'due-soon', 'on-time', 'has-problem', 'has-improvement'];
-const RUN_STATUSES = ['active', 'problem', 'delayed', 'complete', 'improvement', 'starred', 'archived'];
-const STATUSES = new Set([...TASK_STATUSES, ...RUN_STATUSES]);
+const TASK_STATUSES = new Set(['all', 'active', 'active-visible', 'not-started', 'in-progress', 'complete',
+  'overdue', 'stalled', 'due-soon', 'on-time', 'has-problem', 'has-improvement']);
+const RUN_STATUSES = new Set(['active', 'problem', 'delayed', 'complete', 'improvement', 'starred', 'archived']);
+// Which status list each tool takes.
+const STATUS_LISTS = {
+  get_organization_runs: RUN_STATUSES,
+  get_my_tasks: TASK_STATUSES,
+  get_tasks_for_process: TASK_STATUSES,
+};
 
 function unknownBackticked(text, tools) {
   const words = [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
   return [...new Set(words.filter((w) => !tools.has(w) && !KNOWN_KEYS.has(w)))];
 }
 
+function sentences(text) {
+  return text.replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/);
+}
+
+// Every status value in a sentence must be one the tool named in that
+// sentence accepts. A status with no known tool beside it is also reported.
 function unknownStatuses(text) {
-  const values = [...text.matchAll(/status\s+"([^"]+)"/g)].map((m) => m[1]);
-  return [...new Set(values.filter((v) => !STATUSES.has(v)))];
+  const bad = [];
+  for (const s of sentences(text)) {
+    const values = [...s.matchAll(/status\s*=?\s*"([^"]+)"/g)].map((m) => m[1]);
+    if (!values.length) continue;
+    const named = Object.keys(STATUS_LISTS).filter((tool) => s.includes(tool));
+    for (const v of values) {
+      if (named.length !== 1 || !STATUS_LISTS[named[0]].has(v)) bad.push(v);
+    }
+  }
+  return [...new Set(bad)];
+}
+
+// Kickoff answers are keyed by each field's `id`; any other key is dropped.
+function wrongKickoffKeys(text) {
+  return sentences(text).filter((s) => /keyed by/.test(s) && !/keyed by each field's `id`/.test(s));
+}
+
+// Frontmatter values must be plain YAML scalars: no ': ' or ' #' inside.
+function badFrontmatterLines(text) {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n/);
+  if (!m) return ['(no frontmatter)'];
+  return m[1].split('\n').filter((line) => !/^[a-z-]+: (?!.*(: | #)).+$/.test(line));
 }
 
 function loadTools() {
@@ -104,8 +135,14 @@ for (const dir of skills) {
     assert.ok(toolRefs(text, tools).size >= 2);
   });
 
-  test(`${dir}: every quoted status is one the server accepts`, () => {
+  test(`${dir}: every quoted status is one the named tool accepts`, () => {
     assert.deepEqual(unknownStatuses(read(`skills/${dir}/SKILL.md`)), []);
+  });
+
+  test(`${dir}: kickoff answers are keyed by id, and frontmatter is plain YAML`, () => {
+    const text = read(`skills/${dir}/SKILL.md`);
+    assert.deepEqual(wrongKickoffKeys(text), []);
+    assert.deepEqual(badFrontmatterLines(text), []);
   });
 }
 
@@ -122,9 +159,22 @@ test('control: the tool check flags a name the server does not serve', () => {
   }
 });
 
-test('control: the status check flags a value the server does not accept', () => {
-  assert.deepEqual(unknownStatuses('with status "active-visibel" and status "delayed"'), ['active-visibel']);
-  assert.deepEqual(unknownStatuses('with status "has-problem"'), []);
+test('control: the status check flags a value the named tool does not accept', () => {
+  assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status "active-visibel".'), ['active-visibel']);
+  assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status="active-visibel".'), ['active-visibel']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "problem".'), ['problem']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "delayed".'), ['delayed']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "has-problem".'), ['has-problem']);
+  assert.deepEqual(unknownStatuses('Pass status "active".'), ['active']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Call `get_tasks_for_process`\nwith status "has-problem".'), []);
+});
+
+test('control: kickoff key and frontmatter checks flag the wrong shapes', () => {
+  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `label`.").length, 1);
+  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's label.").length, 1);
+  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `id`.").length, 0);
+  assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);
+  assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this, then that\n---\n'), []);
 });
 
 test('.mcp.json has one http server at the connector URL', () => {

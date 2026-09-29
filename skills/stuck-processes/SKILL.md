@@ -9,7 +9,8 @@ description: Find Tallyfy processes that are overdue or have an open problem, an
 
 Call `get_organization_runs` twice: once with status "problem" (a task has an
 open problem) and once with status "delayed" (a task is overdue). If the user
-named a template, a folder or a tag, pass that filter too.
+named a template or a tag, look up its id first with `search_for_templates`
+or `get_tags` and pass that id; a folder can be passed by name.
 
 Results come a page at a time. Read the total in the response's meta and
 fetch the remaining pages. If there are too many to go through, say how many
@@ -20,8 +21,8 @@ there are and work through the first page, latest first.
 For each process, call `get_tasks_for_process` with status "active-visible",
 reading every page, and compare each task's deadline with the current time.
 The tasks past their deadline are the late ones, and their owners are who can
-move them. Owners come back as user and group ids, so name them from
-`get_organization_users_list` and `get_groups`.
+move them. Owners come back as user ids, group ids and guest emails, so name
+the users and groups from `get_organization_users_list` and `get_groups`.
 
 For a process with a problem, call `get_tasks_for_process` with status
 "has-problem" to find the flagged task, then `get_task_comments` on it to
@@ -37,5 +38,7 @@ nothing is stuck, say so in one sentence.
 
 Ask whether the user wants to nudge anyone. Draft the comment, show it to the
 user, and post it with `add_task_comment` only after they approve the text.
+Comments are hidden from guests unless posted with state "open", so use that
+when the owner is a guest.
 If the user has fixed a reported problem, offer to mark it resolved with
 `resolve_task_issues`.

@@ -57,10 +57,10 @@ about anything you could not fix.
 Tell the user the template is ready and summarise it in two or three lines.
 Ask whether they want a test run. If they do:
 
-1. Tell the user who will hear about it. Launching emails every person,
-   group member and guest assigned to its tasks, and an email step sends by
-   itself. Offer to reassign those steps to the user for the test, or to
-   skip the test run.
+1. Tell the user who will hear about it. Launching a process emails
+   everyone assigned to its tasks (people, group members and guests) except
+   the person who launches it. Launch the test only if the user agrees;
+   otherwise skip it.
 2. Call `get_kickoff_fields` and propose a sample value for each required
    field. Let the user change them.
 3. Call `launch_process` with a name that is plainly a test, such as
