@@ -35,6 +35,23 @@ function unknownBackticked(text, tools) {
   return [...new Set(words.filter((w) => !tools.has(w) && !KNOWN_KEYS.has(w)))];
 }
 
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+  }
+  return d[a.length][b.length];
+}
+
+// Statuses some tool accepts, plus `stalled`, which production ignores.
+const ANY_STATUS = [...TASK_STATUSES, ...RUN_STATUSES, 'stalled'];
+function nearStatus(word) {
+  return ANY_STATUS.some((st) => editDistance(word, st) <= 2);
+}
+
 function sentences(text) {
   return text.replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/);
 }
@@ -47,12 +64,15 @@ function unknownStatuses(text) {
     const values = [];
     for (const c of s.split(/[,;]/)) {
       values.push(...[...c.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]));
-      values.push(...[...c.matchAll(/with status ([a-z][a-z-]*)(?=\s*[.,;:()]|\s*$)/g)].map((m) => m[1]));
+      // An unquoted word after "with status" counts only when it is spelled
+      // close to a real status, so "with status updates" is left alone.
+      values.push(...[...c.matchAll(/with status ([a-z][a-z-]*)(?=\s*[.,;:()]|\s*$)/g)]
+        .map((m) => m[1]).filter(nearStatus));
       // A quoted value beside "filter" is a status unless the clause names
       // another filter (folder, tag, archived, template, owner, group).
       if (!/\b(folders?|tags?|archiv\w*|templates?|owners?|groups?)\b/i.test(c)) {
         values.push(...[...c.matchAll(/filter(?:ed)?\b[^"'.]{0,20}?["']([^"']+)["']/g)].map((m) => m[1]));
-        values.push(...[...c.matchAll(/["']([^"']+)["']\s+filter/g)].map((m) => m[1]));
+        values.push(...[...c.matchAll(/["']([^"']+)["']\s+(?:status\s+)?filter/g)].map((m) => m[1]));
       }
     }
     if (!values.length) continue;
@@ -76,7 +96,8 @@ function wrongKickoffKeys(text) {
     // Warnings against labels ("not its label", "labels are ignored") are
     // not offers, so they are removed before looking for an offer.
     const offer = s
-      .replace(new RegExp(`\\b(?:not|never|rather than|instead of)(?: by| using)? (?:its |the |a |their |field )?${LABEL}\\b`, 'gi'), '')
+      .replace(/\b(?:not|never|\w+n't)\b[^,;.]*/gi, '')
+      .replace(new RegExp(`\\b(?:rather than|instead of)(?: by| using)? (?:its |the |a |their |field )?${LABEL}\\b`, 'gi'), '')
       .replace(new RegExp(`\\b${LABEL} (?:are|is) (?:ignored|dropped)\\b`, 'gi'), '');
     return (/keyed (by|on)/i.test(s) && !/keyed by each field's `id`/i.test(s)) || asKey.test(offer);
   });
@@ -201,6 +222,8 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "stalled".'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status delayd (a task is late).'), ['delayd']);
+  assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status updates.'), []);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with the "stalled" status filter.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with the "stalled" filter.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process`, filtered to "stalled".'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status overdue.'), []);
@@ -228,7 +251,12 @@ test('control: kickoff key and frontmatter checks flag the wrong shapes', () => 
     "keyed by each field's `id` instead of the label.", "keyed by each field's `id`; labels are ignored."]) {
     assert.equal(wrongKickoffKeys(ok).length, 0, ok);
   }
-  for (const bad of ['Labels also work.', 'Key by label if the user prefers.', 'Aliases work too.']) {
+  for (const ok of ['Labels do not work as keys.', 'Do not use the label as the key.', 'Never use labels as keys.',
+    'Never key by label.', "keyed by each field's `id`, not its label or alias."]) {
+    assert.equal(wrongKickoffKeys(ok).length, 0, ok);
+  }
+  for (const bad of ['Labels also work.', 'Key by label if the user prefers.', 'Aliases work too.',
+    'If you do not have the id, labels also work.']) {
     assert.equal(wrongKickoffKeys(bad).length, 1, bad);
   }
   assert.equal(wrongKickoffKeys('Call `launch_process` with the name.').length, 1);
