@@ -1,0 +1,15 @@
+{
+  "name": "tallyfy",
+  "displayName": "Tallyfy",
+  "version": "0.1.0",
+  "description": "Build templates, launch processes and work your tasks in Tallyfy from Claude.",
+  "author": {
+    "name": "Tallyfy, Inc.",
+    "url": "https://tallyfy.com"
+  },
+  "homepage": "https://github.com/tallyfy/claude-plugin",
+  "repository": "https://github.com/tallyfy/claude-plugin",
+  "license": "MIT",
+  "privacyPolicyUrl": "https://tallyfy.com/legal/privacy-policy/",
+  "keywords": ["tallyfy", "workflow", "process", "sop", "tasks"]
+}
