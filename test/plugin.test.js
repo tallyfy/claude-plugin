@@ -63,18 +63,26 @@ function unknownStatuses(text) {
   for (const s of sentences(text)) {
     const values = [];
     for (const c of s.split(/[,;]/)) {
-      values.push(...[...c.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]));
-      // Convention: write statuses quoted. An unquoted word after "status"
-      // that is spelled close to a real status is read as one, so a bare
-      // status is checked too, while "status updates" is left alone.
-      values.push(...[...c.matchAll(/\bstatus ([a-z][a-z-]*)\b/g)]
-        .map((m) => m[1]).filter((w) => w.length >= 5 && nearStatus(w)));
-      // A quoted value beside "filter" is a status unless the clause names
-      // another filter (folder, tag, archived, template, owner, group).
-      if (!/\b(folders?|tags?|archiv\w*|templates?|owners?|groups?|type|starred)\b/i.test(c)) {
-        values.push(...[...c.matchAll(/filter(?:ed)?\b[^"'.]{0,20}?["']([^"']+)["']/g)].map((m) => m[1]));
-        values.push(...[...c.matchAll(/["']([^"']+)["']\s+(?:status\s+)?filter/g)].map((m) => m[1]));
+      const otherFilter = /\b(folders?|tags?|archiv\w*|templates?|owners?|groups?|type|starred)\b/i.test(c);
+      const quoted = [...c.matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
+      if (/\bstatus\b/i.test(c)) {
+        // Convention: in a clause that mentions status, every quoted value is
+        // a status, unless the clause also names another filter; then only
+        // the value right after "status" is.
+        if (otherFilter) {
+          values.push(...[...c.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/gi)].map((m) => m[1]));
+        } else {
+          values.push(...quoted);
+        }
+      } else if (!otherFilter) {
+        // A quoted value beside "filter" is a status too.
+        values.push(...[...c.matchAll(/filter(?:ed)?\b[^"'.]{0,20}?["']([^"']+)["']/gi)].map((m) => m[1]));
+        values.push(...[...c.matchAll(/["']([^"']+)["']\s+filter/gi)].map((m) => m[1]));
       }
+      // An unquoted word after "status" that is spelled close to a real
+      // status is read as one, while "status updates" is left alone.
+      values.push(...[...c.matchAll(/\bstatus ([a-z][a-z-]*)\b/gi)]
+        .map((m) => m[1].toLowerCase()).filter((w) => w.length >= 5 && nearStatus(w)));
     }
     if (!values.length) continue;
     const named = Object.keys(STATUS_LISTS).filter((tool) => s.includes(tool));
@@ -95,9 +103,13 @@ function unknownStatuses(text) {
 function wrongKickoffKeys(text) {
   const LABEL = /\b(?:labels?|alias(?:es)?)\b/i;
   const APPROVED = /keyed by each field's `id`/i;
+  const launches = text.includes('launch_process');
   const wrong = sentences(text).filter((s) => {
     if (/\bkeyed (?:by|on)\b/i.test(s) && !APPROVED.test(s)) return true;
     if (/\b(?:labels?|alias(?:es)?) (?:also works?|works? too)\b/i.test(s)) return true;
+    // In a skill that launches a process, a label or alias may be mentioned
+    // only as "not its label".
+    if (launches && LABEL.test(s.replace(/\bnot its label\b/gi, ''))) return true;
     if (/\bkey(?:s|ed)?\b/i.test(s) && LABEL.test(s)) {
       return !(APPROVED.test(s) && !LABEL.test(s.replace(/\bnot its label\b/gi, '')));
     }
@@ -225,6 +237,10 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status delayd (a task is late).'), ['delayd']);
   assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status updates.'), []);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "active-visible" or "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with "stalled" as the status.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Status "stalled" is what `get_tasks_for_process` needs.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with Status stalled.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled to find them.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed" and owner 5.'), []);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the run type filter set to "form".'), []);
@@ -241,6 +257,7 @@ test('control: the status check flags a value the named tool does not accept', (
 });
 
 test('control: kickoff key and frontmatter checks flag the wrong shapes', () => {
+  assert.equal(wrongKickoffKeys('Show each field by its label.').length, 0, 'a label mention is fine where no process is launched');
   for (const ok of ["answers as one object keyed by each field's `id`.", "answers keyed by each field's `id`, not its label.",
     "Call `launch_process` with answers Keyed By Each Field's `id`.", 'Show each field by its label.']) {
     assert.equal(wrongKickoffKeys(ok).length, 0, ok);
@@ -249,7 +266,9 @@ test('control: kickoff key and frontmatter checks flag the wrong shapes', () => 
     "answers keyed by each field's `id` or its label.", 'Field labels work as keys too.', 'Keyed by label also works.',
     'Use the label as the key.', 'Labels also work.', 'Aliases work too.', 'Key by label if the user prefers.',
     'Key each answer by its label if the user prefers.', "If the `id` isn't available use the label as the key.",
-    'If you do not have the id, labels also work.', 'Call `launch_process` with the name.']) {
+    'If you do not have the id, labels also work.', 'Call `launch_process` with the name.',
+    "Call `launch_process` with answers keyed by each field's `id`. If a field has no `id`, use its label instead.",
+    "Call `launch_process` with answers keyed by each field's `id`. Field aliases are fine too."]) {
     assert.equal(wrongKickoffKeys(bad).length, 1, bad);
   }
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);
