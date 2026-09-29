@@ -42,9 +42,9 @@ with `get_standalone_task`.
 - To leave a note for colleagues, call `add_task_comment` with the text the
   user approved.
 - If something blocks the task, draft a one-line description of the
-  problem and show it to the user. A problem report emails everyone on the
-  process that action is needed, so post it with `report_task_issue` only
-  after the user approves the text. The process shows as having a problem
+  problem and show it to the user. A problem report emails the task's other
+  assignees, and anyone watching the task, that action is needed, so post it
+  with `report_task_issue` only after the user approves the text. The process shows as having a problem
   until someone resolves it with `resolve_task_issues`.
 
 After any change, show the user the updated task in one line.
