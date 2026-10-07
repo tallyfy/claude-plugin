@@ -35,18 +35,43 @@ function unknownBackticked(text, tools) {
   return [...new Set(words.filter((w) => !tools.has(w) && !KNOWN_KEYS.has(w)))];
 }
 
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+  }
+  return d[a.length][b.length];
+}
+
+// Statuses some tool accepts, plus `stalled`, which production ignores.
+const ANY_STATUS = [...TASK_STATUSES, ...RUN_STATUSES, 'stalled'];
+function nearStatus(word) {
+  return ANY_STATUS.some((st) => editDistance(word, st) <= 2);
+}
+
 function sentences(text) {
   return text.replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/);
 }
 
-// Every status value in a sentence must be one the tool named in that
-// sentence accepts. A status with no known tool beside it is also reported.
+// Convention (stated in README.md): in a sentence that names a
+// status-taking tool or mentions status, every quoted value is a status and
+// must be one the single status-taking tool named in that sentence accepts.
+// Folder, tag and other filter values go in a separate sentence. An unquoted
+// word after "status" that is spelled close to a real status is read as one
+// too, while "status updates" is left alone.
 function unknownStatuses(text) {
   const bad = [];
   for (const s of sentences(text)) {
-    const values = [...s.matchAll(/status\b[^"'.]{0,30}?["']([^"']+)["']/g)].map((m) => m[1]);
-    if (!values.length) continue;
     const named = Object.keys(STATUS_LISTS).filter((tool) => s.includes(tool));
+    if (!named.length && !/\bstatus\b/i.test(s)) continue;
+    const values = [
+      ...[...s.matchAll(/"([^"]+)"|'([^']+)'/g)].map((m) => m[1] || m[2]),
+      ...[...s.matchAll(/\bstatus ([a-z][a-z-]*)\b/gi)]
+        .map((m) => m[1].toLowerCase()).filter((w) => w.length >= 5 && nearStatus(w)),
+    ];
     for (const v of values) {
       if (named.length !== 1 || !STATUS_LISTS[named[0]].has(v)) bad.push(v);
     }
@@ -55,11 +80,25 @@ function unknownStatuses(text) {
 }
 
 // Kickoff answers are keyed by each field's `id`; any other key is dropped.
-// A skill that launches a process must say so, and must not key them any
-// other way.
+// Convention (stated in README.md), strict so no other key can be offered:
+// a sentence that says "keyed" must end with "keyed by each field's `id`",
+// optionally followed only by ", not its label" or " from
+// `get_kickoff_fields`". In a skill that launches a process, labels and
+// aliases are mentioned nowhere else. In other skills, a sentence that
+// mentions both keys and labels or aliases fails. A skill that names
+// launch_process must state the approved wording.
 function wrongKickoffKeys(text) {
-  const wrong = sentences(text).filter((s) => /keyed (by|on)/.test(s) && !/keyed by each field's `id`/.test(s));
-  if (text.includes('launch_process') && !/keyed by each field's `id`/.test(text.replace(/\s+/g, ' '))) {
+  const LABEL = /\b(?:labels?|alias(?:es)?)\b/i;
+  const APPROVED_END = /keyed by each field's `id`(?:,? not its label,?)?(?: from `get_kickoff_fields`)?\.?$/i;
+  const launches = text.includes('launch_process');
+  const wrong = sentences(text).filter((s) => {
+    const trimmed = s.trim();
+    if (/\bkeyed\b/i.test(trimmed) && !APPROVED_END.test(trimmed)) return true;
+    const rest = trimmed.replace(APPROVED_END, '');
+    if (LABEL.test(rest)) return launches || /\bkey(?:s|ed)?\b/i.test(rest) || /\b(?:also works?|works? too)\b/i.test(rest);
+    return false;
+  });
+  if (launches && !/keyed by each field's `id`/i.test(text.replace(/\s+/g, ' '))) {
     wrong.push('(launch_process named, but no "keyed by each field\'s `id`")');
   }
   return wrong;
@@ -178,16 +217,48 @@ test('control: the status check flags a value the named tool does not accept', (
   assert.deepEqual(unknownStatuses("Call `get_my_tasks` with status 'active-visibel'."), ['active-visibel']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the status filter set to "delayd".'), ['delayd']);
   assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status delayd (a task is late).'), ['delayd']);
+  assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status updates.'), []);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "active-visible" or "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with "stalled" as the status.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Status "stalled" is what `get_tasks_for_process` needs.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with Status stalled.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status stalled to find them.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed" and owner 5.'), []);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with the run type filter set to "form".'), ['form'], 'by convention a filter value goes in its own sentence');
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with the "stalled" status filter.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with the "stalled" filter.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process`, filtered to "stalled".'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status overdue.'), []);
+  assert.deepEqual(unknownStatuses('Call `get_my_tasks` with status set to "active-visible".'), []);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed" and the folder filter set to "Finance".'), ['Finance'], 'by convention a filter value goes in its own sentence');
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Pass the folder as "Finance".'), []);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with status "active-visible" or "stalled" and name each owner.'), ['stalled']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "problem", "delayd" or "complete".'), ['delayd']);
+  assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "problem" or "delayd" for one template.'), ['delayd']);
+  assert.deepEqual(unknownStatuses('Call `get_tasks_for_process` with "stalled" for each type of task.'), ['stalled']);
   assert.deepEqual(unknownStatuses('Call `get_organization_runs` with status "delayed". Call `get_tasks_for_process`\nwith status "has-problem".'), []);
 });
 
 test('control: kickoff key and frontmatter checks flag the wrong shapes', () => {
-  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `label`.").length, 1);
-  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's label.").length, 1);
-  assert.equal(wrongKickoffKeys("answers as one object keyed by each field's `id`.").length, 0);
-  assert.equal(wrongKickoffKeys("answers keyed on each field's label.").length, 1);
-  assert.equal(wrongKickoffKeys('Call `launch_process` with the name.').length, 1);
-  assert.equal(wrongKickoffKeys("Call `launch_process` with answers keyed by each field's `id`.").length, 0);
+  assert.equal(wrongKickoffKeys('Show each field by its label.').length, 0, 'a label mention is fine where no process is launched');
+  assert.equal(wrongKickoffKeys("Call `launch_process` with answers keyed by each field's `id`, not its label, from `get_kickoff_fields`.").length, 0);
+  for (const ok of ["answers as one object keyed by each field's `id`.", "answers keyed by each field's `id`, not its label.",
+    "Call `launch_process` with answers Keyed By Each Field's `id`.", 'Show each field by its label.']) {
+    assert.equal(wrongKickoffKeys(ok).length, 0, ok);
+  }
+  for (const bad of ["answers keyed by each field's `label`.", "answers keyed on each field's label.",
+    "answers keyed by each field's `id` or its label.", 'Field labels work as keys too.', 'Keyed by label also works.',
+    'Use the label as the key.', 'Labels also work.', 'Aliases work too.', 'Key by label if the user prefers.',
+    'Key each answer by its label if the user prefers.', "If the `id` isn't available use the label as the key.",
+    'If you do not have the id, labels also work.', 'Call `launch_process` with the name.',
+    "Call `launch_process` with answers keyed by each field's `id`. If a field has no `id`, use its label instead.",
+    "Call `launch_process` with answers keyed by each field's `id`. Field aliases are fine too.",
+    "Call `launch_process` with answers keyed by each field's `id`, not its label, unless the field has no `id`.",
+    "Call `launch_process` with answers keyed by each field's `id` or its name."]) {
+    assert.equal(wrongKickoffKeys(bad).length, 1, bad);
+  }
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this: then that\n---\n'), ['description: Do this: then that']);
   assert.deepEqual(badFrontmatterLines('---\nname: x\ndescription: Do this, then that\n---\n'), []);
 });
