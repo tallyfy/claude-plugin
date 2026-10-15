@@ -22,8 +22,9 @@ decide whether Claude asks you before using one.
 
 ## Install
 
-Install the Tallyfy plugin from the Claude directory. To try it locally in
-Claude Code, clone this repository and run `claude --plugin-dir .` from it.
+The Tallyfy plugin is not listed in the Claude directory yet. Until it is,
+clone this repository and run `claude --plugin-dir .` from it to use it in
+Claude Code.
 
 ## Privacy
 
