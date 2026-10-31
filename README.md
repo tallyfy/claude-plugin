@@ -20,6 +20,11 @@ only what your Tallyfy role allows. The connector marks every tool that
 deletes or archives as destructive, and your Claude app's tool permissions
 decide whether Claude asks you before using one.
 
+On a Team or Enterprise plan, an organization admin must turn on "Cloud code
+execution and file creation" and "Skills" (renamed "Plugins" on November 30,
+2026) for plugins to work in Claude. Removing the plugin leaves the Tallyfy
+connector connected; disconnect it separately if you no longer want it.
+
 ## Install
 
 The Tallyfy plugin is not listed in the Claude directory yet. Until it is,
