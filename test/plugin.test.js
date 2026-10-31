@@ -137,8 +137,18 @@ function frontmatter(text) {
   return out;
 }
 
+// Image files are binary, so the ASCII check reads text files only.
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg']);
+
 function nonAsciiFiles(files) {
-  return files.filter((f) => /[^\x00-\x7F]/.test(read(f)));
+  return files.filter((f) => !IMAGE_EXT.has(path.extname(f).toLowerCase()) && /[^\x00-\x7F]/.test(read(f)));
+}
+
+// Width and height from a PNG's IHDR chunk, or null if the file is not a PNG.
+function pngSize(file) {
+  const buf = fs.readFileSync(file);
+  if (buf.length < 24 || buf.toString('latin1', 1, 4) !== 'PNG' || buf.toString('latin1', 12, 16) !== 'IHDR') return null;
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), bytes: buf.length };
 }
 
 function listFiles(dir = ROOT, acc = []) {
@@ -283,6 +293,27 @@ test('every file is ASCII only', () => {
   const files = listFiles();
   assert.ok(files.length >= 8, `only ${files.length} files`);
   assert.deepEqual(nonAsciiFiles(files), []);
+});
+
+test('the plugin carries a square PNG icon the directory accepts', () => {
+  const size = pngSize(path.join(ROOT, '.claude-plugin', 'icon.png'));
+  assert.ok(size, '.claude-plugin/icon.png is missing or not a PNG');
+  assert.equal(size.width, size.height, 'icon must be square');
+  assert.ok(size.width >= 512 && size.width <= 2048, `icon is ${size.width} px`);
+  assert.ok(size.bytes < 2 * 1024 * 1024, `icon is ${size.bytes} bytes`);
+});
+
+test('control: the ASCII check skips an image but flags non-ASCII text', () => {
+  const img = path.join(ROOT, 'test', `zq${process.pid}.png`);
+  const txt = path.join(ROOT, 'test', `zq${process.pid}.md`);
+  fs.writeFileSync(img, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff]));
+  fs.writeFileSync(txt, 'a' + String.fromCharCode(0x2014) + 'b');
+  try {
+    assert.deepEqual(nonAsciiFiles([path.relative(ROOT, img), path.relative(ROOT, txt)]), [path.relative(ROOT, txt)]);
+  } finally {
+    fs.unlinkSync(img);
+    fs.unlinkSync(txt);
+  }
 });
 
 test('control: the ASCII check flags a non-ASCII file', () => {
