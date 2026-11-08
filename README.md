@@ -61,10 +61,25 @@ https://tallyfy.com/products/pro/integrations/mcp-server/.
   mention labels or aliases anywhere else. In other skills, do not mention
   keys and labels or aliases in the same sentence, or say that labels or
   aliases also work.
-- Wording outside these rules fails the test on purpose, even when it is
-  correct; reword it to fit.
+- The status and kickoff checks in `test/plugin.test.js` are guards, not
+  proofs. They promise only to catch the mistakes written there as control
+  cases. A new wording of a mistake can pass them, and catching it is the
+  job of the person reviewing a skill change, not the test. Some correct
+  wording fails them on purpose; reword it to fit.
 - Run `node --test` and `claude plugin validate . --strict` before opening a
   pull request.
+
+## Releasing
+
+The Tallyfy MCP server's private repository, tallyfy/mcp, keeps its own
+copy of the tools these skills name, in
+`tests/fixtures/claude_plugin_skill_tools.json`. Its test
+`tests/unit/server/test_claude_plugin_skill_tools.py` fails when one of
+those tools is renamed or removed on the server, so a skill is not left
+calling a tool that is gone. When a skill starts or stops naming a tool,
+refresh that file in the same release, following its `how_to_refresh` note,
+and record the plugin commit the names were read from. A tool missing from
+that file has no such guard.
 
 ## License
 

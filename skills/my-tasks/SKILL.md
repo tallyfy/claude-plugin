@@ -42,9 +42,16 @@ with `get_standalone_task`.
 - To leave a note for colleagues, call `add_task_comment` with the text the
   user approved.
 - If something blocks the task, draft a one-line description of the
-  problem and show it to the user. A problem report emails the task's other
-  assignees, and anyone watching the task, that action is needed, so post it
-  with `report_task_issue` only after the user approves the text. The process shows as having a problem
-  until someone resolves it with `resolve_task_issues`.
+  problem and show it to the user. A problem report emails the task's member
+  assignees and the members of its assigned groups that action is needed,
+  except the user who sends it and anyone who has turned off comment emails.
+  Guest assignees get no report email. People watching the task hear about it
+  through their own watch setting, at once or in a digest. If the task is
+  already complete, the report also reopens it, and reopening emails its
+  other assignees, guests included, except members who have turned off
+  emails about updated or reopened tasks. Post it with
+  `report_task_issue` only after the user approves the text. The process
+  shows as having a problem until someone resolves it with
+  `resolve_task_issues`.
 
 After any change, show the user the updated task in one line.
