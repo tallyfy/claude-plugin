@@ -62,6 +62,9 @@ function sentences(text) {
 // Folder, tag and other filter values go in a separate sentence. An unquoted
 // word after "status" that is spelled close to a real status is read as one
 // too, while "status updates" is left alone.
+// This is a guard, not a proof. It promises only to catch the mistakes in
+// the status control test below. A new wording of a mistake can pass it, and
+// the person reviewing a skill change catches that, not this check.
 function unknownStatuses(text) {
   const bad = [];
   for (const s of sentences(text)) {
@@ -80,13 +83,15 @@ function unknownStatuses(text) {
 }
 
 // Kickoff answers are keyed by each field's `id`; any other key is dropped.
-// Convention (stated in README.md), strict so no other key can be offered:
-// a sentence that says "keyed" must end with "keyed by each field's `id`",
-// optionally followed only by ", not its label" or " from
-// `get_kickoff_fields`". In a skill that launches a process, labels and
-// aliases are mentioned nowhere else. In other skills, a sentence that
-// mentions both keys and labels or aliases fails. A skill that names
-// launch_process must state the approved wording.
+// Convention (stated in README.md), strict on purpose: a sentence that says
+// "keyed" must end with "keyed by each field's `id`", optionally followed
+// only by ", not its label" or " from `get_kickoff_fields`". In a skill that
+// launches a process, labels and aliases are mentioned nowhere else. In
+// other skills, a sentence that mentions both keys and labels or aliases
+// fails. A skill that names launch_process must state the approved wording.
+// This is a guard, not a proof. It promises only to catch the mistakes in
+// the kickoff control test below. A new way of offering another key can pass
+// it, and the person reviewing a skill change catches that, not this check.
 function wrongKickoffKeys(text) {
   const LABEL = /\b(?:labels?|alias(?:es)?)\b/i;
   const APPROVED_END = /keyed by each field's `id`(?:,? not its label,?)?(?: from `get_kickoff_fields`)?\.?$/i;
@@ -144,9 +149,9 @@ function nonAsciiFiles(files) {
   return files.filter((f) => !IMAGE_EXT.has(path.extname(f).toLowerCase()) && /[^\x00-\x7F]/.test(read(f)));
 }
 
-// Width and height from a PNG's IHDR chunk, or null if the file is not a PNG.
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
+// Width and height from a PNG's IHDR chunk, or null if the file is not a PNG.
 function pngSize(file) {
   if (!fs.existsSync(file)) return null;
   const buf = fs.readFileSync(file);
