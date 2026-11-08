@@ -47,8 +47,9 @@ with `get_standalone_task`.
   except the user who sends it and anyone who has turned off comment emails.
   Guest assignees get no email. People watching the task hear about it
   through their own watch setting, at once or in a digest. If the task is
-  already complete, the report also reopens it, and reopening emails all of
-  its assignees, guests included. Post it with
+  already complete, the report also reopens it, and reopening emails its
+  other assignees, guests included, except members who have turned off
+  emails about updated or reopened tasks. Post it with
   `report_task_issue` only after the user approves the text. The process
   shows as having a problem until someone resolves it with
   `resolve_task_issues`.
