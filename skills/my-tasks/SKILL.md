@@ -45,7 +45,7 @@ with `get_standalone_task`.
   problem and show it to the user. A problem report emails the task's member
   assignees and the members of its assigned groups that action is needed,
   except the user who sends it and anyone who has turned off comment emails.
-  Guest assignees get no email. People watching the task hear about it
+  Guest assignees get no report email. People watching the task hear about it
   through their own watch setting, at once or in a digest. If the task is
   already complete, the report also reopens it, and reopening emails its
   other assignees, guests included, except members who have turned off
