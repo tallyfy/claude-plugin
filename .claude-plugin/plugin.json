@@ -11,5 +11,6 @@
   "repository": "https://github.com/tallyfy/claude-plugin",
   "license": "MIT",
   "privacyPolicyUrl": "https://tallyfy.com/legal/privacy-policy/",
+  "icon": "./.claude-plugin/icon.png",
   "keywords": ["tallyfy", "workflow", "process", "sop", "tasks"]
 }
